@@ -186,52 +186,60 @@ function parseConditionalSyntax(text, currentVariables = {}) {
     hasMultilineChanges = false;
 
     // 处理多行if-elseif-else结构：@if(条件1): 内容1 @elseif(条件2): 内容2 @else: 内容3 @end
-    const multiLineIfElseIfRegex =
-      /@if\s*\(\s*([^)]+)\s*\):\s*((?:(?!@if|@elseif|@else|@end)[\s\S])*?)(?:@elseif\s*\(\s*([^)]+)\s*\):\s*((?:(?!@if|@elseif|@else|@end)[\s\S])*?))*(?:@else:\s*((?:(?!@if|@elseif|@else|@end)[\s\S])*?))?@end/g;
+    const multiLineIfElseIfRegex = /@if\s*\([^)]+\)[^@]*?(?:@elseif[^@]*?)*(?:@else[^@]*?)?@end/g;
 
-    processedText = processedText.replace(multiLineIfElseIfRegex, (match, ...args) => {
+    processedText = processedText.replace(multiLineIfElseIfRegex, match => {
       hasMultilineChanges = true;
 
       if (debug) {
         console.log(`变量助手: 处理多行if-elseif-else结构: "${match}"`);
       }
 
-      // 解析所有的if和elseif条件
-      const parts = match.match(
-        /@(?:if|elseif)\s*\(\s*([^)]+)\s*\):\s*((?:(?!@if|@elseif|@else|@end)[\s\S])*?)(?=@(?:elseif|else|end))/g,
-      );
-      const elsePart = match.match(/@else:\s*((?:(?!@if|@elseif|@else|@end)[\s\S])*?)@end/);
-
-      // 评估每个条件
-      for (const part of parts || []) {
-        const partMatch = part.match(/@(?:if|elseif)\s*\(\s*([^)]+)\s*\):\s*((?:(?!@if|@elseif|@else|@end)[\s\S])*)/);
-        if (partMatch) {
-          const [, condition, content] = partMatch;
-
-          // 使用新的逻辑条件解析函数
+      // 手动解析整个结构
+      const parseMultilineConditions = text => {
+        // 先找到主if条件和内容
+        const ifMatch = text.match(/@if\s*\(\s*([^)]+)\s*\):\s*([\s\S]*?)(?=@elseif|@else|@end)/);
+        if (ifMatch) {
+          const [, condition, content] = ifMatch;
           const conditionResult = parseLogicalCondition(condition, getVariableValue, debug);
           if (conditionResult) {
             if (debug) {
-              console.log(`变量助手: 条件为真，返回内容: "${content.trim()}"`);
+              console.log(`变量助手: 多行if条件为真，返回内容: "${content.trim()}"`);
             }
             return content.trim();
           }
         }
-      }
 
-      // 如果所有条件都为假，返回else部分
-      if (elsePart) {
-        if (debug) {
-          console.log(`变量助手: 所有条件为假，返回else内容: "${elsePart[1].trim()}"`);
+        // 查找所有elseif条件
+        const elseifMatches = [...text.matchAll(/@elseif\s*\(\s*([^)]+)\s*\):\s*([\s\S]*?)(?=@elseif|@else|@end)/g)];
+        for (const elseifMatch of elseifMatches) {
+          const [, condition, content] = elseifMatch;
+          const conditionResult = parseLogicalCondition(condition, getVariableValue, debug);
+          if (conditionResult) {
+            if (debug) {
+              console.log(`变量助手: 多行elseif条件为真，返回内容: "${content.trim()}"`);
+            }
+            return content.trim();
+          }
         }
-        return elsePart[1].trim();
-      }
 
-      // 如果没有else部分且所有条件为假，返回空字符串
-      if (debug) {
-        console.log(`变量助手: 所有条件为假且无else分支，返回空字符串`);
-      }
-      return '';
+        // 查找else部分
+        const elseMatch = text.match(/@else:\s*([\s\S]*?)@end/);
+        if (elseMatch) {
+          if (debug) {
+            console.log(`变量助手: 多行所有条件为假，返回else内容: "${elseMatch[1].trim()}"`);
+          }
+          return elseMatch[1].trim();
+        }
+
+        // 如果没有else且所有条件为假
+        if (debug) {
+          console.log(`变量助手: 多行所有条件为假且无else分支，返回空字符串`);
+        }
+        return '';
+      };
+
+      return parseMultilineConditions(match);
     });
 
     // 处理简单多行if-else结构：@if(条件): 内容1 @else: 内容2 @end
@@ -491,7 +499,7 @@ function parseVariableSyntax(text, currentVariables = {}) {
   });
 
   // 匹配变量获取：@变量名（不包括 @if 和 @else 等关键字）
-  const getterRegex = /@([a-zA-Z_\u4e00-\u9fa5][a-zA-Z0-9_\u4e00-\u9fa5]*)(?!\s*[=\(]|else|end)/g;
+  const getterRegex = /@([a-zA-Z_\u4e00-\u9fa5][a-zA-Z0-9_\u4e00-\u9fa5]*)(?!\s*[=\(]|else\b|end\b|if\b|elseif\b)/g;
   processedText = processedText.replace(getterRegex, (match, varName) => {
     const replacement = `{{getvar::${varName}}}`;
 
@@ -643,6 +651,11 @@ function testVariableParsing() {
     '@if(好感度 > 80 && (等级 >= 10 || 健康值 > 70)): 复杂逻辑组合',
     '@if((生命值 > 50 && 魔法值 > 40) || 状态 == 无敌): 战斗准备完毕',
     '@if(!(生命值 <= 20 || 健康值 <= 30)): 状态良好',
+
+    // 修复后的多行if-elseif-else测试
+    '@好感度 = 85\n@if(好感度 > 95):\n恋人关系\n@elseif(好感度 > 80):\n好友关系\n@else:\n普通关系\n@end',
+    '@生命值 = 30\n@if(生命值 <= 20):\n危险状态\n@elseif(生命值 <= 50):\n警告状态\n@else:\n良好状态\n@end',
+    '@魔法值 = 80\n@if(魔法值 > 70):\n可以施法\n@elseif(魔法值 > 30):\n基础法术\n@else:\n无法施法\n@end',
   ];
 
   console.log('变量助手测试开始（完整else功能）：');

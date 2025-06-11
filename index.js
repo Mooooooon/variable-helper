@@ -99,6 +99,114 @@ function parseConditionalSyntax(text, currentVariables = {}) {
   let hasMultilineChanges = true;
   while (hasMultilineChanges) {
     hasMultilineChanges = false;
+
+    // 处理多行if-elseif-else结构：@if(条件1): 内容1 @elseif(条件2): 内容2 @else: 内容3 @end
+    const multiLineIfElseIfRegex =
+      /@if\s*\(\s*([^)]+)\s*\):\s*((?:(?!@if|@elseif|@else|@end)[\s\S])*?)(?:@elseif\s*\(\s*([^)]+)\s*\):\s*((?:(?!@if|@elseif|@else|@end)[\s\S])*?))*(?:@else:\s*((?:(?!@if|@elseif|@else|@end)[\s\S])*?))?@end/g;
+
+    processedText = processedText.replace(multiLineIfElseIfRegex, (match, ...args) => {
+      hasMultilineChanges = true;
+
+      if (debug) {
+        console.log(`变量助手: 处理多行if-elseif-else结构: "${match}"`);
+      }
+
+      // 解析所有的if和elseif条件
+      const parts = match.match(
+        /@(?:if|elseif)\s*\(\s*([^)]+)\s*\):\s*((?:(?!@if|@elseif|@else|@end)[\s\S])*?)(?=@(?:elseif|else|end))/g,
+      );
+      const elsePart = match.match(/@else:\s*((?:(?!@if|@elseif|@else|@end)[\s\S])*?)@end/);
+
+      // 评估每个条件
+      for (const part of parts || []) {
+        const partMatch = part.match(/@(?:if|elseif)\s*\(\s*([^)]+)\s*\):\s*((?:(?!@if|@elseif|@else|@end)[\s\S])*)/);
+        if (partMatch) {
+          const [, condition, content] = partMatch;
+          const conditionMatch = condition.match(conditionPattern);
+
+          if (conditionMatch) {
+            const [, varName, operator, compareValue] = conditionMatch;
+            const currentValue = getVariableValue(varName);
+
+            if (debug) {
+              console.log(`变量助手: 评估条件 ${varName}(${currentValue}) ${operator} ${compareValue.trim()}`);
+            }
+
+            if (currentValue !== null && currentValue !== undefined) {
+              const conditionResult = evaluateCondition(currentValue, operator, compareValue.trim());
+              if (conditionResult) {
+                if (debug) {
+                  console.log(`变量助手: 条件为真，返回内容: "${content.trim()}"`);
+                }
+                return content.trim();
+              }
+            }
+          }
+        }
+      }
+
+      // 如果所有条件都为假，返回else部分
+      if (elsePart) {
+        if (debug) {
+          console.log(`变量助手: 所有条件为假，返回else内容: "${elsePart[1].trim()}"`);
+        }
+        return elsePart[1].trim();
+      }
+
+      // 如果没有else部分且所有条件为假，返回空字符串
+      if (debug) {
+        console.log(`变量助手: 所有条件为假且无else分支，返回空字符串`);
+      }
+      return '';
+    });
+
+    // 处理简单多行if-else结构：@if(条件): 内容1 @else: 内容2 @end
+    const multiLineIfElseRegex =
+      /@if\s*\(\s*([^)]+)\s*\):\s*((?:(?!@if|@else|@end)[\s\S])*?)@else:\s*((?:(?!@if|@else|@end)[\s\S])*?)@end/g;
+
+    processedText = processedText.replace(multiLineIfElseRegex, (match, condition, thenContent, elseContent) => {
+      hasMultilineChanges = true;
+
+      if (debug) {
+        console.log(`变量助手: 处理多行if-else - 条件: "${condition}", then: "${thenContent}", else: "${elseContent}"`);
+      }
+
+      const conditionMatch = condition.match(conditionPattern);
+      if (!conditionMatch) {
+        if (debug) {
+          console.log(`变量助手: 无法解析条件表达式: ${condition}`);
+        }
+        return match;
+      }
+
+      const [, varName, operator, compareValue] = conditionMatch;
+      const currentValue = getVariableValue(varName);
+
+      if (debug) {
+        console.log(
+          `变量助手: 多行if-else条件评估 - 变量 ${varName}(${currentValue}) ${operator} ${compareValue.trim()}`,
+        );
+      }
+
+      // 如果变量不存在，使用else分支
+      if (currentValue === null || currentValue === undefined) {
+        if (debug) {
+          console.log(`变量助手: 变量 ${varName} 不存在，使用else分支`);
+        }
+        return elseContent.trim();
+      }
+
+      // 直接评估条件并返回对应分支
+      const conditionResult = evaluateCondition(currentValue, operator, compareValue.trim());
+
+      if (debug) {
+        console.log(`变量助手: 多行if-else条件结果: ${conditionResult ? 'then分支' : 'else分支'}`);
+      }
+
+      return conditionResult ? thenContent.trim() : elseContent.trim();
+    });
+
+    // 处理简单多行if：@if(条件): 内容 @end
     const multiLineIfRegex = /@if\s*\(\s*([^)]+)\s*\):\s*((?:(?!@if|@end)[\s\S])*?)@end/g;
 
     processedText = processedText.replace(multiLineIfRegex, (match, condition, content) => {
@@ -142,7 +250,83 @@ function parseConditionalSyntax(text, currentVariables = {}) {
     });
   }
 
-  // 处理if-else条件：@if(条件): 内容1 @else: 内容2
+  // 处理单行if-elseif-else条件：@if(条件1): 内容1 @elseif(条件2): 内容2 @else: 内容3
+  const ifElseIfRegex =
+    /@if\s*\([^)]+\)[^@]*?(?:@elseif\s*\([^)]+\)[^@]*?)*(?:@else[^@\n\r]*?)?(?=\s*(?:@\w+|$|\n|\r))/g;
+  processedText = processedText.replace(ifElseIfRegex, match => {
+    if (debug) {
+      console.log(`变量助手: 处理单行if-elseif-else结构: "${match}"`);
+    }
+
+    // 解析主if条件
+    const ifMatch = match.match(/@if\s*\(\s*([^)]+)\s*\):\s*([^@]+?)(?=\s*@(?:elseif|else)|$)/);
+    if (ifMatch) {
+      const [, condition, content] = ifMatch;
+      const conditionMatch = condition.match(conditionPattern);
+
+      if (conditionMatch) {
+        const [, varName, operator, compareValue] = conditionMatch;
+        const currentValue = getVariableValue(varName);
+
+        if (debug) {
+          console.log(`变量助手: 单行评估if条件 ${varName}(${currentValue}) ${operator} ${compareValue.trim()}`);
+        }
+
+        if (currentValue !== null && currentValue !== undefined) {
+          const conditionResult = evaluateCondition(currentValue, operator, compareValue.trim());
+          if (conditionResult) {
+            if (debug) {
+              console.log(`变量助手: if条件为真，返回内容: "${content.trim()}"`);
+            }
+            return content.trim();
+          }
+        }
+      }
+    }
+
+    // 解析elseif条件
+    const elseIfMatches = [...match.matchAll(/@elseif\s*\(\s*([^)]+)\s*\):\s*([^@]+?)(?=\s*@(?:elseif|else)|$)/g)];
+    for (const elseIfMatch of elseIfMatches) {
+      const [, condition, content] = elseIfMatch;
+      const conditionMatch = condition.match(conditionPattern);
+
+      if (conditionMatch) {
+        const [, varName, operator, compareValue] = conditionMatch;
+        const currentValue = getVariableValue(varName);
+
+        if (debug) {
+          console.log(`变量助手: 单行评估elseif条件 ${varName}(${currentValue}) ${operator} ${compareValue.trim()}`);
+        }
+
+        if (currentValue !== null && currentValue !== undefined) {
+          const conditionResult = evaluateCondition(currentValue, operator, compareValue.trim());
+          if (conditionResult) {
+            if (debug) {
+              console.log(`变量助手: elseif条件为真，返回内容: "${content.trim()}"`);
+            }
+            return content.trim();
+          }
+        }
+      }
+    }
+
+    // 解析else部分
+    const elseMatch = match.match(/@else:\s*([^@\n\r]+?)(?=\s*(?:@\w+|$|\n|\r)|$)/);
+    if (elseMatch) {
+      if (debug) {
+        console.log(`变量助手: 单行所有条件为假，返回else内容: "${elseMatch[1].trim()}"`);
+      }
+      return elseMatch[1].trim();
+    }
+
+    // 如果没有else部分且所有条件为假，返回空字符串
+    if (debug) {
+      console.log(`变量助手: 单行所有条件为假且无else分支，返回空字符串`);
+    }
+    return '';
+  });
+
+  // 处理简单if-else条件：@if(条件): 内容1 @else: 内容2
   const ifElseRegex = /@if\s*\(\s*([^)]+)\s*\):\s*([^@]+?)\s*@else:\s*([^@\n\r]+)/g;
   processedText = processedText.replace(ifElseRegex, (match, condition, thenContent, elseContent) => {
     if (debug) {
@@ -465,8 +649,18 @@ function testVariableParsing() {
     '@if(好感度 > 90): 关系很好 @else: 关系一般',
     '@if(等级 >= 10): 高级玩家 @else: 新手玩家',
 
+    // 单行elseif测试
+    '@if(好感度 > 90): 恋人关系 @elseif(好感度 > 70): 好友关系 @else: 普通关系',
+    '@if(等级 > 20): 专家 @elseif(等级 > 10): 老手 @elseif(等级 > 5): 新手 @else: 菜鸟',
+
     // 多行条件测试
     '@if(关系状态 == 恋人): 亲爱的，今天过得怎么样？ 想要一起吃晚饭吗？ @end',
+
+    // 多行if-else测试
+    '@if(好感度 > 80): 角色露出了甜美的笑容，看起来很开心。 今天真是美好的一天！ @else: 角色表情平淡，似乎心情一般。 @end',
+
+    // 多行elseif测试
+    '@if(健康值 > 80): 你感觉精力充沛，状态很好！ 可以进行任何活动。 @elseif(健康值 > 50): 你感觉还不错，但有些疲惫。 适当休息会更好。 @else: 你感觉很虚弱，需要立即休息。 不要勉强自己。 @end',
 
     // 复合测试
     '@好感度 = 100 @if(好感度 > 80): 角色会表白',
@@ -475,14 +669,25 @@ function testVariableParsing() {
     '@等级 = 15',
     '@if(等级 >= 10): 你是高级玩家',
     '@if(生命值 <= 20): 状态不佳',
+
+    // 嵌套测试（复杂场景）
+    '@状态 = 战斗 @if(状态 == 战斗): @if(生命值 > 50): 继续战斗！ @else: 快逃跑！ @end @else: 平静的一天 @end',
   ];
 
-  console.log('变量助手测试开始（包含条件判断）：');
+  console.log('变量助手测试开始（完整else功能）：');
   console.log('=========================================');
 
   testCases.forEach((testCase, index) => {
     // 创建测试用的变量状态
-    const testVariables = { 好感度: '100', 名字: '小明', 等级: '5', 生命值: '30' };
+    const testVariables = {
+      好感度: '85',
+      名字: '小明',
+      等级: '15',
+      生命值: '30',
+      健康值: '60',
+      关系状态: '好友',
+      状态: '战斗',
+    };
     const result = parseVariableSyntax(testCase, testVariables);
     console.log(`测试 ${index + 1}:`);
     console.log(`  输入: ${testCase}`);

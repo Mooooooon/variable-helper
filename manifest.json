@@ -5,8 +5,8 @@
   "optional": [],
   "js": "index.js",
   "css": "style.css",
-  "author": "变量助手开发者",
+  "author": "@司马咩咩",
   "version": "3.0.1",
-  "homePage": "https://github.com/variable-helper",
+  "homePage": "https://github.com/Mooooooon/variable-helper",
   "generate_interceptor": "variableHelperInterceptor"
 }

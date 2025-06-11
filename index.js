@@ -85,6 +85,91 @@ function parseConditionalSyntax(text, currentVariables = {}) {
   // 修复：正确匹配操作符，确保>=、<=在>、<之前匹配
   const conditionPattern = /([a-zA-Z_\u4e00-\u9fa5][a-zA-Z0-9_\u4e00-\u9fa5]*)\s*(>=|<=|==|!=|>|<)\s*(.+)/;
 
+  // 逻辑操作符解析函数
+  const parseLogicalCondition = (condition, getVariableValue, debug) => {
+    if (debug) {
+      console.log(`变量助手: 解析逻辑条件: "${condition}"`);
+    }
+
+    // 处理非（NOT）操作符：!(条件) 或 非(条件) 或 不是(条件)
+    const notMatch = condition.match(/^(?:!|非|不是)\s*\(\s*(.+)\s*\)$/);
+    if (notMatch) {
+      const innerCondition = notMatch[1];
+      const innerResult = parseLogicalCondition(innerCondition, getVariableValue, debug);
+      if (debug) {
+        console.log(`变量助手: 非操作 - 内部条件"${innerCondition}"结果: ${innerResult}, 非操作后: ${!innerResult}`);
+      }
+      return !innerResult;
+    }
+
+    // 处理与（AND）操作符：条件1 && 条件2 或 条件1 且 条件2 或 条件1 并且 条件2
+    const andMatch = condition.match(/^(.+?)\s*(?:&&|且|并且)\s*(.+)$/);
+    if (andMatch) {
+      const [, leftCondition, rightCondition] = andMatch;
+      const leftResult = parseLogicalCondition(leftCondition.trim(), getVariableValue, debug);
+      const rightResult = parseLogicalCondition(rightCondition.trim(), getVariableValue, debug);
+      const finalResult = leftResult && rightResult;
+      if (debug) {
+        console.log(
+          `变量助手: 与操作 - 左条件"${leftCondition.trim()}"(${leftResult}) && 右条件"${rightCondition.trim()}"(${rightResult}) = ${finalResult}`,
+        );
+      }
+      return finalResult;
+    }
+
+    // 处理或（OR）操作符：条件1 || 条件2 或 条件1 或 条件2 或 条件1 或者 条件2
+    const orMatch = condition.match(/^(.+?)\s*(?:\|\||或|或者)\s*(.+)$/);
+    if (orMatch) {
+      const [, leftCondition, rightCondition] = orMatch;
+      const leftResult = parseLogicalCondition(leftCondition.trim(), getVariableValue, debug);
+      const rightResult = parseLogicalCondition(rightCondition.trim(), getVariableValue, debug);
+      const finalResult = leftResult || rightResult;
+      if (debug) {
+        console.log(
+          `变量助手: 或操作 - 左条件"${leftCondition.trim()}"(${leftResult}) || 右条件"${rightCondition.trim()}"(${rightResult}) = ${finalResult}`,
+        );
+      }
+      return finalResult;
+    }
+
+    // 处理括号：(条件)
+    const parenthesesMatch = condition.match(/^\s*\(\s*(.+)\s*\)\s*$/);
+    if (parenthesesMatch) {
+      return parseLogicalCondition(parenthesesMatch[1], getVariableValue, debug);
+    }
+
+    // 处理基本条件：变量名 操作符 值
+    const basicMatch = condition.match(conditionPattern);
+    if (basicMatch) {
+      const [, varName, operator, compareValue] = basicMatch;
+      const currentValue = getVariableValue(varName);
+
+      if (debug) {
+        console.log(`变量助手: 基本条件评估 - 变量 ${varName}(${currentValue}) ${operator} ${compareValue.trim()}`);
+      }
+
+      // 如果变量不存在，条件为假
+      if (currentValue === null || currentValue === undefined) {
+        if (debug) {
+          console.log(`变量助手: 变量 ${varName} 不存在，条件为假`);
+        }
+        return false;
+      }
+
+      const result = evaluateCondition(currentValue, operator, compareValue.trim());
+      if (debug) {
+        console.log(`变量助手: 基本条件结果: ${result}`);
+      }
+      return result;
+    }
+
+    // 无法解析的条件，返回false
+    if (debug) {
+      console.log(`变量助手: 无法解析条件"${condition}"，返回false`);
+    }
+    return false;
+  };
+
   // 辅助函数：获取变量值
   const getVariableValue = varName => {
     let value = currentVariables[varName];
@@ -122,25 +207,14 @@ function parseConditionalSyntax(text, currentVariables = {}) {
         const partMatch = part.match(/@(?:if|elseif)\s*\(\s*([^)]+)\s*\):\s*((?:(?!@if|@elseif|@else|@end)[\s\S])*)/);
         if (partMatch) {
           const [, condition, content] = partMatch;
-          const conditionMatch = condition.match(conditionPattern);
 
-          if (conditionMatch) {
-            const [, varName, operator, compareValue] = conditionMatch;
-            const currentValue = getVariableValue(varName);
-
+          // 使用新的逻辑条件解析函数
+          const conditionResult = parseLogicalCondition(condition, getVariableValue, debug);
+          if (conditionResult) {
             if (debug) {
-              console.log(`变量助手: 评估条件 ${varName}(${currentValue}) ${operator} ${compareValue.trim()}`);
+              console.log(`变量助手: 条件为真，返回内容: "${content.trim()}"`);
             }
-
-            if (currentValue !== null && currentValue !== undefined) {
-              const conditionResult = evaluateCondition(currentValue, operator, compareValue.trim());
-              if (conditionResult) {
-                if (debug) {
-                  console.log(`变量助手: 条件为真，返回内容: "${content.trim()}"`);
-                }
-                return content.trim();
-              }
-            }
+            return content.trim();
           }
         }
       }
@@ -171,33 +245,8 @@ function parseConditionalSyntax(text, currentVariables = {}) {
         console.log(`变量助手: 处理多行if-else - 条件: "${condition}", then: "${thenContent}", else: "${elseContent}"`);
       }
 
-      const conditionMatch = condition.match(conditionPattern);
-      if (!conditionMatch) {
-        if (debug) {
-          console.log(`变量助手: 无法解析条件表达式: ${condition}`);
-        }
-        return match;
-      }
-
-      const [, varName, operator, compareValue] = conditionMatch;
-      const currentValue = getVariableValue(varName);
-
-      if (debug) {
-        console.log(
-          `变量助手: 多行if-else条件评估 - 变量 ${varName}(${currentValue}) ${operator} ${compareValue.trim()}`,
-        );
-      }
-
-      // 如果变量不存在，使用else分支
-      if (currentValue === null || currentValue === undefined) {
-        if (debug) {
-          console.log(`变量助手: 变量 ${varName} 不存在，使用else分支`);
-        }
-        return elseContent.trim();
-      }
-
-      // 直接评估条件并返回对应分支
-      const conditionResult = evaluateCondition(currentValue, operator, compareValue.trim());
+      // 使用新的逻辑条件解析函数
+      const conditionResult = parseLogicalCondition(condition, getVariableValue, debug);
 
       if (debug) {
         console.log(`变量助手: 多行if-else条件结果: ${conditionResult ? 'then分支' : 'else分支'}`);
@@ -216,31 +265,8 @@ function parseConditionalSyntax(text, currentVariables = {}) {
         console.log(`变量助手: 处理多行条件 - 条件: "${condition}", 内容: "${content}"`);
       }
 
-      const conditionMatch = condition.match(conditionPattern);
-      if (!conditionMatch) {
-        if (debug) {
-          console.log(`变量助手: 无法解析条件表达式: ${condition}`);
-        }
-        return match;
-      }
-
-      const [, varName, operator, compareValue] = conditionMatch;
-      const currentValue = getVariableValue(varName);
-
-      if (debug) {
-        console.log(`变量助手: 多行条件评估 - 变量 ${varName}(${currentValue}) ${operator} ${compareValue.trim()}`);
-      }
-
-      // 如果变量不存在，条件为假，返回空字符串
-      if (currentValue === null || currentValue === undefined) {
-        if (debug) {
-          console.log(`变量助手: 变量 ${varName} 不存在，多行条件为假`);
-        }
-        return '';
-      }
-
-      // 直接评估条件并返回结果
-      const conditionResult = evaluateCondition(currentValue, operator, compareValue.trim());
+      // 使用新的逻辑条件解析函数
+      const conditionResult = parseLogicalCondition(condition, getVariableValue, debug);
 
       if (debug) {
         console.log(`变量助手: 多行条件结果: ${conditionResult ? '真' : '假'}`);
@@ -262,25 +288,14 @@ function parseConditionalSyntax(text, currentVariables = {}) {
     const ifMatch = match.match(/@if\s*\(\s*([^)]+)\s*\):\s*([^@]+?)(?=\s*@(?:elseif|else)|$)/);
     if (ifMatch) {
       const [, condition, content] = ifMatch;
-      const conditionMatch = condition.match(conditionPattern);
 
-      if (conditionMatch) {
-        const [, varName, operator, compareValue] = conditionMatch;
-        const currentValue = getVariableValue(varName);
-
+      // 使用新的逻辑条件解析函数
+      const conditionResult = parseLogicalCondition(condition, getVariableValue, debug);
+      if (conditionResult) {
         if (debug) {
-          console.log(`变量助手: 单行评估if条件 ${varName}(${currentValue}) ${operator} ${compareValue.trim()}`);
+          console.log(`变量助手: if条件为真，返回内容: "${content.trim()}"`);
         }
-
-        if (currentValue !== null && currentValue !== undefined) {
-          const conditionResult = evaluateCondition(currentValue, operator, compareValue.trim());
-          if (conditionResult) {
-            if (debug) {
-              console.log(`变量助手: if条件为真，返回内容: "${content.trim()}"`);
-            }
-            return content.trim();
-          }
-        }
+        return content.trim();
       }
     }
 
@@ -288,25 +303,14 @@ function parseConditionalSyntax(text, currentVariables = {}) {
     const elseIfMatches = [...match.matchAll(/@elseif\s*\(\s*([^)]+)\s*\):\s*([^@]+?)(?=\s*@(?:elseif|else)|$)/g)];
     for (const elseIfMatch of elseIfMatches) {
       const [, condition, content] = elseIfMatch;
-      const conditionMatch = condition.match(conditionPattern);
 
-      if (conditionMatch) {
-        const [, varName, operator, compareValue] = conditionMatch;
-        const currentValue = getVariableValue(varName);
-
+      // 使用新的逻辑条件解析函数
+      const conditionResult = parseLogicalCondition(condition, getVariableValue, debug);
+      if (conditionResult) {
         if (debug) {
-          console.log(`变量助手: 单行评估elseif条件 ${varName}(${currentValue}) ${operator} ${compareValue.trim()}`);
+          console.log(`变量助手: elseif条件为真，返回内容: "${content.trim()}"`);
         }
-
-        if (currentValue !== null && currentValue !== undefined) {
-          const conditionResult = evaluateCondition(currentValue, operator, compareValue.trim());
-          if (conditionResult) {
-            if (debug) {
-              console.log(`变量助手: elseif条件为真，返回内容: "${content.trim()}"`);
-            }
-            return content.trim();
-          }
-        }
+        return content.trim();
       }
     }
 
@@ -333,31 +337,8 @@ function parseConditionalSyntax(text, currentVariables = {}) {
       console.log(`变量助手: 处理if-else条件 - 条件: "${condition}", then: "${thenContent}", else: "${elseContent}"`);
     }
 
-    const conditionMatch = condition.match(conditionPattern);
-    if (!conditionMatch) {
-      if (debug) {
-        console.log(`变量助手: 无法解析条件表达式: ${condition}`);
-      }
-      return match;
-    }
-
-    const [, varName, operator, compareValue] = conditionMatch;
-    const currentValue = getVariableValue(varName);
-
-    if (debug) {
-      console.log(`变量助手: if-else条件评估 - 变量 ${varName}(${currentValue}) ${operator} ${compareValue.trim()}`);
-    }
-
-    // 如果变量不存在，使用else分支
-    if (currentValue === null || currentValue === undefined) {
-      if (debug) {
-        console.log(`变量助手: 变量 ${varName} 不存在，使用else分支`);
-      }
-      return elseContent.trim();
-    }
-
-    // 直接评估条件并返回对应分支
-    const conditionResult = evaluateCondition(currentValue, operator, compareValue.trim());
+    // 使用新的逻辑条件解析函数
+    const conditionResult = parseLogicalCondition(condition, getVariableValue, debug);
 
     if (debug) {
       console.log(`变量助手: if-else条件结果: ${conditionResult ? 'then分支' : 'else分支'}`);
@@ -373,31 +354,8 @@ function parseConditionalSyntax(text, currentVariables = {}) {
       console.log(`变量助手: 处理单行条件 - 条件: "${condition}", 内容: "${content}"`);
     }
 
-    const conditionMatch = condition.match(conditionPattern);
-    if (!conditionMatch) {
-      if (debug) {
-        console.log(`变量助手: 无法解析条件表达式: ${condition}`);
-      }
-      return match;
-    }
-
-    const [, varName, operator, compareValue] = conditionMatch;
-    const currentValue = getVariableValue(varName);
-
-    if (debug) {
-      console.log(`变量助手: 单行条件评估 - 变量 ${varName}(${currentValue}) ${operator} ${compareValue.trim()}`);
-    }
-
-    // 如果变量不存在，条件为假，返回空字符串
-    if (currentValue === null || currentValue === undefined) {
-      if (debug) {
-        console.log(`变量助手: 变量 ${varName} 不存在，单行条件为假`);
-      }
-      return '';
-    }
-
-    // 直接评估条件并返回结果
-    const conditionResult = evaluateCondition(currentValue, operator, compareValue.trim());
+    // 使用新的逻辑条件解析函数
+    const conditionResult = parseLogicalCondition(condition, getVariableValue, debug);
 
     if (debug) {
       console.log(`变量助手: 单行条件结果: ${conditionResult ? '真' : '假'}`);
@@ -672,6 +630,19 @@ function testVariableParsing() {
 
     // 嵌套测试（复杂场景）
     '@状态 = 战斗 @if(状态 == 战斗): @if(生命值 > 50): 继续战斗！ @else: 快逃跑！ @end @else: 平静的一天 @end',
+
+    // 逻辑操作符测试
+    '@if(好感度 > 80 && 等级 >= 10): 高好感度且高等级',
+    '@if(生命值 <= 20 || 健康值 <= 30): 状态不佳',
+    '@if(好感度 > 70 且 等级 > 5): 中文与操作符',
+    '@if(生命值 < 50 或 健康值 < 40): 中文或操作符',
+    '@if(!(好感度 < 50)): 非操作符测试',
+    '@if(非(等级 < 5)): 中文非操作符',
+
+    // 复杂逻辑组合
+    '@if(好感度 > 80 && (等级 >= 10 || 健康值 > 70)): 复杂逻辑组合',
+    '@if((生命值 > 50 && 魔法值 > 40) || 状态 == 无敌): 战斗准备完毕',
+    '@if(!(生命值 <= 20 || 健康值 <= 30)): 状态良好',
   ];
 
   console.log('变量助手测试开始（完整else功能）：');
@@ -685,6 +656,7 @@ function testVariableParsing() {
       等级: '15',
       生命值: '30',
       健康值: '60',
+      魔法值: '45',
       关系状态: '好友',
       状态: '战斗',
     };

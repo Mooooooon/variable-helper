@@ -1,0 +1,69 @@
+<!-- 变量助手扩展设置界面 -->
+<div class="variable-helper-settings">
+  <div class="inline-drawer">
+    <div class="inline-drawer-toggle inline-drawer-header">
+      <b>变量助手</b>
+      <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+    </div>
+    <div class="inline-drawer-content">
+      <div class="variable-helper_block flex-container">
+        <input id="variable_helper_enabled" type="checkbox" />
+        <label for="variable_helper_enabled">启用变量助手</label>
+      </div>
+
+      <div class="variable-helper_block flex-container">
+        <input id="variable_helper_conditional" type="checkbox" />
+        <label for="variable_helper_conditional">启用条件判断功能</label>
+      </div>
+
+      <div class="variable-helper_block">
+        <label for="variable_helper_debug">调试模式</label>
+        <input id="variable_helper_debug" type="checkbox" />
+        <small>启用后会在控制台显示变量转换信息</small>
+      </div>
+
+      <div class="variable-helper_block">
+        <h4>变量语法：</h4>
+        <p><strong>设置变量：</strong> <code>@变量名 = 值</code></p>
+        <p><strong>获取变量：</strong> <code>@变量名</code></p>
+        <p><strong>示例：</strong></p>
+        <ul>
+          <li><code>@好感度 = 100</code> - 设置好感度为100</li>
+          <li><code>@好感度</code> - 获取好感度的值</li>
+          <li><code>@名字 = 小明</code> - 设置字符串变量</li>
+        </ul>
+      </div>
+
+      <div class="variable-helper_block">
+        <h4>条件判断语法：</h4>
+        <p><strong>单行条件：</strong> <code>@if(变量名 操作符 值): 内容</code></p>
+        <p><strong>带else条件：</strong> <code>@if(变量名 操作符 值): 内容1 @else: 内容2</code></p>
+        <p><strong>多行条件：</strong></p>
+        <code>
+          @if(变量名 操作符 值):<br />
+          多行内容<br />
+          @end
+        </code>
+        <p>
+          <strong>支持的操作符：</strong> <code>&gt;</code>, <code>&lt;</code>, <code>&gt;=</code>, <code>&lt;=</code>,
+          <code>==</code>, <code>!=</code>
+        </p>
+        <p><strong>示例：</strong></p>
+        <ul>
+          <li><code>@if(好感度 &gt; 80): 角色会表白</code></li>
+          <li><code>@if(等级 &gt;= 10): 高级玩家 @else: 新手玩家</code></li>
+          <li><code>@if(名字 == 小明): 你好小明</code></li>
+        </ul>
+        <p>
+          <small><strong>注意：</strong>条件满足时，LLM只会看到条件内容</small>
+        </p>
+      </div>
+
+      <div class="variable-helper_block flex-container">
+        <input id="test_variable_parsing" class="menu_button" type="submit" value="测试变量解析" />
+      </div>
+
+      <hr class="sysHR" />
+    </div>
+  </div>
+</div>

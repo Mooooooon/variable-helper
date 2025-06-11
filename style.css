@@ -1,1 +1,37 @@
 /* All style elements for your extension go here */
+
+/* 变量助手扩展样式 */
+.variable-helper-settings .variable-helper_block {
+  margin: 10px 0;
+  padding: 5px 0;
+}
+
+.variable-helper-settings .variable-helper_block h4 {
+  margin: 10px 0 5px 0;
+  color: #f0f0f0;
+}
+
+.variable-helper-settings .variable-helper_block p {
+  margin: 5px 0;
+  font-size: 13px;
+}
+
+.variable-helper-settings .variable-helper_block ul {
+  margin: 5px 0 5px 20px;
+  font-size: 12px;
+}
+
+.variable-helper-settings .variable-helper_block code {
+  background-color: #2a2a2a;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  color: #ffdd44;
+}
+
+.variable-helper-settings .variable-helper_block small {
+  font-size: 11px;
+  color: #aaa;
+  display: block;
+  margin-top: 2px;
+}

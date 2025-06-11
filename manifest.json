@@ -1,11 +1,12 @@
 {
-    "display_name": "Name Displayed in SillyTavern",
-    "loading_order": 9,
-    "requires": [],
-    "optional": [],
-    "js": "index.js",
-    "css": "style.css",
-    "author": "yourNameHere",
-    "version": "1.0.0",
-    "homePage": "yourUrlHere"
+  "display_name": "变量助手",
+  "loading_order": 5,
+  "requires": [],
+  "optional": [],
+  "js": "index.js",
+  "css": "style.css",
+  "author": "变量助手开发者",
+  "version": "3.0.1",
+  "homePage": "https://github.com/variable-helper",
+  "generate_interceptor": "variableHelperInterceptor"
 }

@@ -1,7 +1,7 @@
 // 变量助手扩展 - 主脚本
 // 通过导入模块化的功能来初始化扩展
 
-import { extension_settings } from '../extensions.js';
+import { extension_settings } from '../../../extensions.js';
 import { extensionFolderPath, extensionName } from './src/constants.js';
 import { variableHelperInterceptor } from './src/interceptor.js';
 import { loadSettings, onConditionalChange, onDebugChange, onEnabledChange } from './src/settings.js';

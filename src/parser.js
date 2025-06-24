@@ -1,4 +1,4 @@
-import { extension_settings } from '../../../extensions.js';
+import { extension_settings } from '../../../../extensions.js';
 import { extensionName } from './constants.js';
 import { evaluateCondition, getSTVariableValue } from './utils.js';
 

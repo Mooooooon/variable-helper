@@ -1,5 +1,5 @@
-import { saveSettingsDebounced } from '../../../../script.js';
-import { extension_settings } from '../../../extensions.js';
+import { saveSettingsDebounced } from '../../../../../script.js';
+import { extension_settings } from '../../../../extensions.js';
 import { defaultSettings, extensionName } from './constants.js';
 
 /**

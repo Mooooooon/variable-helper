@@ -1,4 +1,4 @@
-import { extension_settings } from '../../../extensions.js';
+import { extension_settings } from '../../../../extensions.js';
 
 /**
  * 获取SillyTavern中的变量值
